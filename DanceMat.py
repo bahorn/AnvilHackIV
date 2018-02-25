@@ -3,6 +3,10 @@ import os
 import hy
 import json
 import re
+import asyncio
+import datetime
+import random
+import websockets
 
 import MapInput
 import DanceTyper
@@ -25,6 +29,10 @@ class DanceMat:
         self.typer = DanceTyper.DanceTyper()
         self.mode = "INSERT"
         self.predictor = PredictiveCode.Predictor()
+        self.predictions_found = []
+        self.curr_pred = 0
+        self.last_returned = ""
+
     def predictions(self):
         self.curr = (get_current_word(self.typer.display_line(self.line),
                              self.typer.pos(self.line)-1))
@@ -33,16 +41,24 @@ class DanceMat:
         if self.predictions_found == []:
             print("unable to predict. non found")
             self.mode = "INSERT"
-    def _process_event(self, event):
+
+    async def _process_event(self, event, websocket):
         details = MapInput.map_input(event)
-        self.event_handler(details)
+        await self.event_handler(details, websocket)
+
     # start the event loop
     def run(self):
+        start_server = websockets.serve(self.websocket_server, '127.0.0.1', 5678)
+        asyncio.get_event_loop().run_until_complete(start_server)
+        asyncio.get_event_loop().run_forever()
+
+    async def websocket_server(self, websocket, path):
         while True:
             events = get_gamepad()
             for event in events:
-                self._process_event(event)
-    def event_handler(self, details):
+                await self._process_event(event, websocket)
+
+    async def event_handler(self, details, websocket):
         if details == None:
             return None
         if details[1] == 0: return False # was just unpressed
@@ -54,6 +70,7 @@ class DanceMat:
                 try:
                     expression = hy.read_str(self.typer.display_line(self.line))
                     print("Result:",hy.eval(expression))
+                    self.last_returned = hy.eval(expression)
                 except Exception as e:
                     print("Exception:",e.__str__())
             elif details[0] == "select":
@@ -73,8 +90,12 @@ class DanceMat:
                         self.typer.append_to_pos(self.line,
                                 (self.predictions_found[self.curr_pred]+" ")[len(self.curr):])
                         self.mode = "INSERT"
+                        self.predictions_found = []
+                        self.curr_pred = []
                     elif result == "exit_prediction_mode":
                         self.mode = "INSERT"
+                        self.predictions_found = []
+                        self.curr_pred = []
             elif self.mode == "INSERT":
                 result = self.typer.add_key(details[0], self.line)
                 # check if the user typed a special key combo
@@ -112,6 +133,18 @@ class DanceMat:
             for pred in self.predictions_found:
                 print("{} {}".format([" ","*"][i==self.curr_pred], pred))
                 i += 1
+        everything = {
+            "mode":self.mode,
+            "line":self.line,
+            "pos":self.typer.pos(self.line),
+            "progress":self.typer.inprogress(self.line),
+            "line_text":self.typer.display_line(self.line),
+            "predictions":self.predictions_found,
+            "current_prediction":self.curr_pred,
+            "last_output":""
+        }
+        await websocket.send(json.dumps(everything))
+
 if __name__ == "__main__":
     dance = DanceMat()
     dance.run()

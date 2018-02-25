@@ -148,7 +148,10 @@ class DanceTyper:
         return len(self.document)
 
     def pos(self, line):
-        return self.document_pos[line]
+        try:
+            return self.document_pos[line]
+        except:
+            return 0
 
     def inprogress(self, line):
         if (len(self.previous_actions[line])%2==0 and \
