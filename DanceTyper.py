@@ -1,4 +1,7 @@
 import copy
+
+import PredictiveCode
+
 letters = {
     ('circle', 'circle'): ')',
     ('circle', 'cross'): '(',
@@ -51,13 +54,22 @@ special = {
     ('triangle', 'down'): 'down_line',
     ('triangle', 'left'): 'pos_left',
     ('triangle', 'right'): 'pos_right',
-    ('square', 'square'): 'remove_current'
+    ('square', 'square'): 'remove_current',
+    ('square', 'cross'): 'predictive_mode'
+}
+
+special_prediction = {
+    ('left', 'left'): "prev_prediction",
+    ('right', 'right'): "next_prediction",
+    ('square', 'square'): "exit_prediction_mode",
+    ('cross','cross'): "select_prediction"
 }
 
 # Handles our Code buffer objects.
 class DanceTyper:
     def __init__(self):
         self.previous_actions = []
+        self.predict_actions = []
         self.document = []
         self.document_pos = []
         self.new_line()
@@ -67,7 +79,7 @@ class DanceTyper:
         return "".join(line)
     # Add a button press to the object.
     def add_key(self, key, line):
-        if len(self.previous_actions) > line:
+        if len(self.previous_actions) >= 0:
             self.previous_actions[line].append(key)
             if len(self.previous_actions[line]) < 2 or \
                     len(self.previous_actions[line]) % 2 != 0:
@@ -112,14 +124,18 @@ class DanceTyper:
         if location == -1:
             self.document.append([])
             self.previous_actions.append([])
+            self.predict_actions.append([])
             self.document_pos.append(0)
         else:
             self.document = self.document[:location] + copy.deepcopy([[]]) + \
                 self.document[location:]
             self.previous_actions = self.previous_actions[:location] + \
                 copy.deepcopy([[]]) + self.previous_actions[location:]
+            self.predict_actions = self.predict_actions[:location] + \
+                copy.deepcopy([[]]) + self.predict_actions[location:]
             self.document_pos = self.document_pos[:location] + [0]  + \
                 self.document_pos[location:]
+
     def remove_line(self, location=-1):
         self.previous_actions.pop(location)
         self.document.pop(location)
@@ -127,15 +143,40 @@ class DanceTyper:
         # Both get removed at the same time, so just check one.
         if self.previous_actions == []:
             self.new_line()
+
     def lines(self):
         return len(self.document)
+
     def pos(self, line):
         return self.document_pos[line]
+
     def inprogress(self, line):
         if (len(self.previous_actions[line])%2==0 and \
                 len(self.previous_actions[line]) != 0):
             return "n"
         return "y"
+
     def changepos(self, line, new_pos):
         if new_pos < 0 or new_pos > len(self.document[line]): return
         self.document_pos[line] = new_pos
+
+    def append_to_pos(self, line, value):
+        self.document[line] = self.document[line][:self.document_pos[line]] + \
+            list(value) + self.document[line][self.document_pos[line]:]
+        self.document_pos[line] += len(value)
+
+    def predict_handler(self, key, line):
+        if (len(self.predict_actions) >= 0):
+            self.predict_actions[line].append(key)
+            if len(self.predict_actions[line]) < 2 or \
+                    len(self.predict_actions[line]) % 2 != 0:
+                return
+
+            try:
+                lookup = (self.predict_actions[line][-2],
+                        self.predict_actions[line][-1])
+                if lookup in special_prediction:
+                    return special_prediction[lookup]
+                self.previous_actions[line] = self.previous_actions[line][:-2]
+            except:
+                pass
