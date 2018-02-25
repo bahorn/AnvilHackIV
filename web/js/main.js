@@ -13,7 +13,15 @@ function event_handler(event) {
     var highlighted = data['line_text'][data['pos']-1];
     document.getElementById("commandPage").innerHTML = data['line'];
     document.getElementById("partCommand").innerHTML = data['progress'];
-    document.getElementById("command").innerHTML = data['line_text'].substr(0, data['pos']-1)+"<mark>"+highlighted+"</mark>";
+    var k = data['line_text'].substr(0, data['pos']-1);
+    var l = data['line_text'].substr(data['pos'],data['line_text'].length);
+    if (k == "undefined") {
+        k = "";
+    }
+    if (l == "undefined") {
+        l = "";
+    }
+    document.getElementById("command").innerHTML = k+"<mark>"+highlighted+"</mark>"+l;
     document.getElementById("output").innerHTML = data['last_output'];
 }
 
